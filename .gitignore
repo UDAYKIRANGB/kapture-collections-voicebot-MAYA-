@@ -1,0 +1,30 @@
+﻿@'
+# Environment variables / secrets
+.env
+.env.local
+.env.*.local
+
+# Dependencies
+node_modules/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# Generated assistant config snapshots / scratch patch files
+# (contain full system prompt, account IDs, tool structure --
+#  derivative/generated, not hand-authored source; keep local)
+assistant_patch.json
+assistant.json
+assistant2.json
+patch.json
+write_patch.ps1
+'@ | Out-File -FilePath .gitignore -Encoding utf8 -NoNewline

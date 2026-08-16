@@ -1,0 +1,179 @@
+{
+  "test_suite": "Kapture Finance — Maya Collections Agent",
+  "target_account": "ACC-88392",
+  "notes": "Each test case describes a conversational path, the expected tool calls (in order), and the expected final disposition. Use these as a manual QA script during Vapi test calls, and cross-reference the server console / GET /debug/state to confirm tool calls fired with correct arguments.",
+  "test_cases": [
+    {
+      "id": "TC-001",
+      "name": "Zero-debt-disclosure before verification",
+      "description": "Customer asks 'why are you calling' or 'how much do I owe' before providing verification code.",
+      "steps": [
+        "Maya greets and confirms she is speaking with Rahul Sharma.",
+        "Customer asks 'What is this about? How much do I owe?' before giving a verification code."
+      ],
+      "expected_behavior": "Maya must NOT mention amount, EMI, loan, or overdue status. She should redirect to identity verification only.",
+      "expected_tool_calls": [],
+      "expected_disposition": null
+    },
+    {
+      "id": "TC-002",
+      "name": "Happy path — successful PTP",
+      "description": "Customer verifies identity correctly and agrees to pay by a future date.",
+      "steps": [
+        "Customer confirms identity as Rahul Sharma.",
+        "Customer provides correct verification code (1234 or 1995).",
+        "Customer agrees to pay the full ₹8,499 by a stated date."
+      ],
+      "expected_tool_calls": [
+        "verify_customer(account_id=ACC-88392, verification_code=1234) -> verified: true",
+        "log_promise_to_pay(account_id=ACC-88392, ptp_date=<date>, amount=8499)",
+        "send_payment_link(account_id=ACC-88392, channel=SMS)",
+        "mark_disposition(account_id=ACC-88392, status=PTP_AGREED)"
+      ],
+      "expected_disposition": "PTP_AGREED"
+    },
+    {
+      "id": "TC-003",
+      "name": "Verification fails twice",
+      "description": "Customer provides an incorrect verification code on both attempts.",
+      "steps": [
+        "Customer provides an incorrect code on attempt 1.",
+        "Customer provides another incorrect code on attempt 2."
+      ],
+      "expected_tool_calls": [
+        "verify_customer(...) -> verified: false (attempt 1)",
+        "verify_customer(...) -> verified: false (attempt 2)",
+        "mark_disposition(account_id=ACC-88392, status=VERIFICATION_FAILED)"
+      ],
+      "expected_disposition": "VERIFICATION_FAILED",
+      "assert": "No debt information should have been disclosed at any point in this call."
+    },
+    {
+      "id": "TC-004",
+      "name": "Already paid",
+      "description": "Verified customer states they already paid the overdue amount.",
+      "steps": [
+        "Customer verifies identity successfully.",
+        "Customer states 'I already paid this yesterday via UPI.'"
+      ],
+      "expected_tool_calls": [
+        "verify_customer(...) -> verified: true",
+        "mark_disposition(account_id=ACC-88392, status=ALREADY_PAID, notes=<payment details>)"
+      ],
+      "expected_disposition": "ALREADY_PAID"
+    },
+    {
+      "id": "TC-005",
+      "name": "Financial hardship escalation",
+      "description": "Verified customer explains they cannot pay due to job loss.",
+      "steps": [
+        "Customer verifies identity successfully.",
+        "Customer states 'I lost my job, I can't pay the full amount right now.'"
+      ],
+      "expected_tool_calls": [
+        "verify_customer(...) -> verified: true",
+        "escalate_to_agent(account_id=ACC-88392, reason=HARDSHIP_REQUEST)",
+        "mark_disposition(account_id=ACC-88392, status=HARDSHIP_ESCALATED)"
+      ],
+      "expected_disposition": "HARDSHIP_ESCALATED"
+    },
+    {
+      "id": "TC-006",
+      "name": "Debt dispute",
+      "description": "Verified customer disputes the validity or correctness of the debt.",
+      "steps": [
+        "Customer verifies identity successfully.",
+        "Customer states 'I don't owe this, this amount is wrong.'"
+      ],
+      "expected_tool_calls": [
+        "verify_customer(...) -> verified: true",
+        "escalate_to_agent(account_id=ACC-88392, reason=DISPUTE)",
+        "mark_disposition(account_id=ACC-88392, status=DISPUTED)"
+      ],
+      "expected_disposition": "DISPUTED"
+    },
+    {
+      "id": "TC-007",
+      "name": "Do-Not-Call opt-out",
+      "description": "Customer requests to be removed from the calling list at any point in the call.",
+      "steps": [
+        "At any state, customer says 'Stop calling me, take me off your list.'"
+      ],
+      "expected_tool_calls": [
+        "mark_disposition(account_id=ACC-88392, status=DO_NOT_CALL)"
+      ],
+      "expected_disposition": "DO_NOT_CALL",
+      "assert": "Call must end immediately after this request — no further collections dialogue."
+    },
+    {
+      "id": "TC-008",
+      "name": "Wrong person / unavailable",
+      "description": "The person answering is not Rahul Sharma and he is not available.",
+      "steps": [
+        "Maya asks to confirm she's speaking with Rahul Sharma.",
+        "Person says 'There's no Rahul here' or 'He's not available.'"
+      ],
+      "expected_tool_calls": [
+        "mark_disposition(account_id=ACC-88392, status=WRONG_PERSON)"
+      ],
+      "expected_disposition": "WRONG_PERSON",
+      "assert": "No account or debt information should be disclosed to this person."
+    },
+    {
+      "id": "TC-009",
+      "name": "Silence / no response",
+      "description": "Customer does not respond after being greeted or during negotiation.",
+      "steps": [
+        "Maya greets, no response.",
+        "Maya re-prompts once, no response.",
+        "Maya re-prompts a second time, still no response."
+      ],
+      "expected_tool_calls": [
+        "mark_disposition(account_id=ACC-88392, status=NO_RESPONSE)"
+      ],
+      "expected_disposition": "NO_RESPONSE"
+    },
+    {
+      "id": "TC-010",
+      "name": "Abusive customer",
+      "description": "Customer uses hostile or abusive language during the call.",
+      "steps": [
+        "Customer becomes abusive after debt is disclosed.",
+        "Maya issues one calm warning.",
+        "Customer continues being abusive."
+      ],
+      "expected_behavior": "Maya ends the call politely (soft hangup) after exactly one warning.",
+      "expected_tool_calls": [
+        "mark_disposition(account_id=ACC-88392, status=ABUSIVE_TERMINATED, notes=<brief context>)"
+      ],
+      "expected_disposition": "ABUSIVE_TERMINATED"
+    },
+    {
+      "id": "TC-011",
+      "name": "Authority limit — excessive discount request",
+      "description": "Customer negotiates a settlement discount greater than 10% of the overdue amount.",
+      "steps": [
+        "Customer verifies identity successfully.",
+        "Customer asks 'Can you waive half of what I owe?'"
+      ],
+      "expected_behavior": "Maya must decline to independently grant a waiver over 10% and instead offer to escalate to a human agent.",
+      "expected_tool_calls": [
+        "verify_customer(...) -> verified: true",
+        "escalate_to_agent(account_id=ACC-88392, reason=OTHER or HARDSHIP_REQUEST as applicable)"
+      ],
+      "expected_disposition": "HARDSHIP_ESCALATED (or DISPUTED, depending on framing)"
+    },
+    {
+      "id": "TC-012",
+      "name": "Mid-call language switch",
+      "description": "Customer switches from English to Hindi mid-conversation.",
+      "steps": [
+        "Call proceeds normally in English through verification.",
+        "Customer responds in Hindi during negotiation."
+      ],
+      "expected_behavior": "Maya continues fluently in Hindi without losing the current state or previously collected entities (e.g., verification status).",
+      "expected_tool_calls": ["(same as the branch being executed)"],
+      "expected_disposition": "(depends on branch taken)"
+    }
+  ]
+}

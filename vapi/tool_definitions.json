@@ -1,0 +1,145 @@
+{
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "verify_customer",
+        "description": "Verifies the identity of the person on the call against the account on file. Must be called and must return verified:true before any debt/account information is disclosed.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "account_id": {
+              "type": "string",
+              "description": "The Kapture Finance account ID associated with this call, e.g. 'ACC-88392'."
+            },
+            "verification_code": {
+              "type": "string",
+              "description": "The value provided by the customer to verify identity — either the last 4 digits of their PAN, or their birth year (e.g. '1234' or '1995')."
+            }
+          },
+          "required": ["account_id", "verification_code"]
+        }
+      },
+      "server": {
+        "url": "https://barstool-illusion-hardener.ngrok-free.dev/webhook"
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "log_promise_to_pay",
+        "description": "Records a customer's committed payment date and amount after they agree to pay their overdue balance.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "account_id": {
+              "type": "string",
+              "description": "The Kapture Finance account ID."
+            },
+            "ptp_date": {
+              "type": "string",
+              "description": "The date the customer has committed to pay, in ISO-8601 format (YYYY-MM-DD)."
+            },
+            "amount": {
+              "type": "number",
+              "description": "The amount, in INR, the customer has committed to pay."
+            }
+          },
+          "required": ["account_id", "ptp_date", "amount"]
+        }
+      },
+      "server": {
+        "url": "https://barstool-illusion-hardener.ngrok-free.dev/webhook"
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "send_payment_link",
+        "description": "Dispatches a payment link to the verified customer via the specified channel, after a Promise-to-Pay has been logged.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "account_id": {
+              "type": "string",
+              "description": "The Kapture Finance account ID."
+            },
+            "channel": {
+              "type": "string",
+              "enum": ["SMS", "WHATSAPP", "EMAIL"],
+              "description": "The channel through which to send the payment link."
+            }
+          },
+          "required": ["account_id", "channel"]
+        }
+      },
+      "server": {
+        "url": "https://barstool-illusion-hardener.ngrok-free.dev/webhook"
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "escalate_to_agent",
+        "description": "Routes the call/case to a human agent or grievance desk, used for hardship claims or disputes that require human judgment.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "account_id": {
+              "type": "string",
+              "description": "The Kapture Finance account ID."
+            },
+            "reason": {
+              "type": "string",
+              "enum": ["HARDSHIP_REQUEST", "DISPUTE", "OTHER"],
+              "description": "The reason for escalation."
+            }
+          },
+          "required": ["account_id", "reason"]
+        }
+      },
+      "server": {
+        "url": "https://barstool-illusion-hardener.ngrok-free.dev/webhook"
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "mark_disposition",
+        "description": "Logs the final outcome/disposition of the call. Must be called exactly once before the call ends, regardless of which branch the conversation took.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "account_id": {
+              "type": "string",
+              "description": "The Kapture Finance account ID."
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "PTP_AGREED",
+                "ALREADY_PAID",
+                "HARDSHIP_ESCALATED",
+                "DISPUTED",
+                "DO_NOT_CALL",
+                "WRONG_PERSON",
+                "VERIFICATION_FAILED",
+                "NO_RESPONSE",
+                "ABUSIVE_TERMINATED"
+              ],
+              "description": "The final disposition status of the call."
+            },
+            "notes": {
+              "type": "string",
+              "description": "Optional free-text notes providing additional context about the disposition."
+            }
+          },
+          "required": ["account_id", "status"]
+        }
+      },
+      "server": {
+        "url": "https://barstool-illusion-hardener.ngrok-free.dev/webhook"
+      }
+    }
+  ]
+}
